@@ -1,0 +1,460 @@
+
+---
+title: "Exercises 1"
+author: "Samruddhi Somani"
+date: "August 7, 2015"
+output: 
+  pdf_document: 
+    latex_engine: lualatex
+pandoc_args:
+- +RTS
+- -K64m
+- -RTS
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.align='center', tidy=FALSE)
+```
+
+#Question 1: Data Visualization
+
+
+Install the following libraries.
+```{r, message=FALSE}
+library (ggplot2)
+library(cowplot)
+library(gridExtra)
+```
+
+Read in Georgia2000 data with the first row as the variables names.
+```{r, tidy=FALSE}
+ga2000 <- read.csv('https://raw.githubusercontent.com/jgscott/STA380/master/data/georgia2000.csv', header=TRUE)
+```
+
+Calculate additional variables to facilitate analysis of vote undercount. 
+
+_Diff = Ballots - Votes_ This is the vote undercount--the number of ballots that were not counted.
+
+
+_Pct = Diff/Ballots_ This the the undercount scaled by the number of ballots in each county.
+
+Change categorical variables `poor`, `urban`, and `atlanta` from type _int_ to type _factor_ so that these variables are interpreted as discrete categorical variables rather than continuous variables. Thus, we can color code our graphics.
+
+```{r}
+ga2000$diff<-ga2000$ballots-ga2000$votes 
+ga2000$poor<-as.factor(ga2000$poor)
+ga2000$pct<-(ga2000$diff)/(ga2000$ballots)
+ga2000$poor<-factor(ga2000$poor)
+ga2000$urban<-factor(ga2000$urban)
+ga2000$atlanta<-factor(ga2000$atlanta)
+```
+
+Use pairs to create a set of scatterplots relating the correlations of all the variables with each other. 
+```{r}
+pairs(ga2000)
+```
+
+We see that `diff` is strongly correlated with `votes` and `ballots`. Thus, further analysis should focus on `pct`, the percent difference between `ballots` and `votes`. This will ensure that larger counties with more voters do not overshadow smaller counties with fewer voters in our analysis.
+
+
+Upon further examination, we see that `pct` appears to be correlated with  `atlanta`, `urban`, and `poor`. Different equipment types (`equip`) do not appear to have much of an effect on `pct`. However, we will examine this relationship more closely in a bivariate plot.
+
+
+We create bivariate plots to better visualize particular aspects of the data. The titles below represent the key takeaways from each plot.
+
+```{r}
+
+g1<-ggplot (aes(x=equip, y=pct, fill=equip), data=ga2000)+geom_boxplot(colour='black')+theme_minimal() +xlab("Equipment")+ylab("Percent Undercount")+ggtitle ('Undercounting is consistent across equipment.') + guides (fill=FALSE)
+
+g2<-ggplot (aes(x=poor, fill=equip), data=ga2000)+geom_bar(position="fill", aes(colour="black")) + theme_minimal() + ggtitle ('Poor counties use more levers.\nLess poor counties use more optical machines.') + scale_fill_discrete ("Equipment") + scale_x_discrete(labels=c('No', 'Yes'))+ xlab("Poor")+ylab("Fraction of Counties per Category") + scale_color_identity() +theme(legend.key = element_rect(colour = "black", size = 1))
+
+g3<-ggplot (aes(x=equip, y=pct, col=poor), data=ga2000)+geom_point(size=4, position = position_jitter(width=.10), alpha=.5)+theme_minimal()+xlab("Equipment")+ylab("Percent Undercount")+ggtitle ('Poor counties have more undercounting regardless of equipment') + scale_color_discrete("Poor", labels=c('No', 'Yes'))
+
+g4<-ggplot (aes(x=urban, fill=equip), data=ga2000)+geom_bar(position="fill", aes(color='black')) + theme_minimal() + ggtitle ('More urban counties use optical and punch systems.\nMore rural counties use more lever systems') + scale_fill_discrete ("Equipment") + scale_x_discrete(labels=c('No', 'Yes')) + xlab("Predominantly Urban")+ylab("Fraction of Counties per Category") + scale_color_identity() +theme(legend.key = element_rect(colour = "black", size = 1)) 
+
+g5<-ggplot (aes(x=equip, y=pct, col=urban), data=ga2000)+geom_point(size=4, position = position_jitter(width=.10), alpha=.5)+theme_minimal()+xlab("Equipment")+ylab("Percent Undercount")+ggtitle ('Rural counties show more undercounting regardless of equipment') + scale_color_discrete("Urban", labels=c('No', 'Yes'))
+
+g6<-ggplot (aes(x=atlanta), data=ga2000)+geom_bar(size=4)+theme_minimal()+xlab("Equipment")+ylab("Number of Counties")+ggtitle ('There are too few Atlanta counties to make meaningful comparisons.\n However, Atlanta counties should behave similarly to other urban counties.') + scale_x_discrete("Atlanta", labels=c('No', 'Yes'))
+
+g7<-ggplot (aes(x=equip, y=perAA,fill=equip),data=ga2000)+geom_boxplot()+theme_minimal()+xlab("Equipment")+ylab("Percent African American")+ ggtitle ('Counties that use optical tend to have a lower\npercentages of African Americans.') + scale_fill_discrete(guide=FALSE)
+
+g8<-ggplot (aes(x=perAA, y=pct),data=ga2000)+geom_point(aes(color=poor),size=4, alpha=.5)+theme_minimal()+xlab("Percent African American")+ylab("Percent Undercount")+ggtitle ('Percent undercount goes up slightly as percent African American increases, but there\nappears to be a strong division between poor counties and less poor counties') +geom_smooth(se=FALSE, method='lm', colour='black', size=1.1)+ scale_colour_discrete ("Poor",labels=c('<25%','>25%'))
+```
+
+```{r, dev='png', fig.height=15, fig.width=15}
+grid.arrange(g1,g6,g2,g3,g4,g5,g7,g8,ncol=2)
+
+```
+
+###Conclusion
+
+We see that poor and rural counties are more likely to use different kinds of voting equipment than rich counties. However, certain kinds of voting equipment are not associated with higher undercount percentages. Moreover, poor and rural areas appear to suffer more undercounting _regardless_ of equipment. Percentage of African Americans does not explain anything after accounting for poverty.
+
+#Question 2
+
+Import libraries and source returns function.
+```{r, message=FALSE}
+library(mosaic)
+library(foreach)
+library(fImport)
+
+
+YahooPricesToReturns = function(series) {
+	mycols = grep('Adj.Close', colnames(series))
+	closingprice = series[,mycols]
+	N = nrow(closingprice)
+	percentreturn = as.data.frame(closingprice[2:N,]) / as.data.frame(closingprice[1:(N-1),]) - 1
+	mynames = strsplit(colnames(percentreturn), '.', fixed=TRUE)
+	mynames = lapply(mynames, function(x) return(paste0(x[1], ".PctReturn")))
+	colnames(percentreturn) = mynames
+	as.matrix(na.omit(percentreturn))
+}
+```
+
+Import prices and calculate returns. 
+```{r}
+assets=c("SPY", "TLT", "LQD", "EEM", "VNQ")
+prices = yahooSeries(assets, from='2010-01-01', to='2015-07-30')
+returns = YahooPricesToReturns (prices)
+
+```
+
+
+Calculate standard variance to determine how much returns vary across assets. Calculate betas to determine how risky an investment is compared to the market (taken to be SPY).
+```{r}
+sd<-apply(returns,2,sd)
+beta<-apply(returns,2, function (x) coef(summary(lm(x~returns[,1])))[2])
+rbind(sd,beta)
+```
+Larger betas and larger standard deviations both indicate higher risk (but also the possibility for higher returns). We see that betas and standard deviations by and large express the same information about these assets' riskiness. EEM is by far the riskiest: It has the highest beta and the highest standard deviation. LQD is the least risky: It has the lowest beta and the lowest standard deviation. The TLT betas and standard deviations do not line up: Although TLT returns are about as volatile as SPY returns, TLT moves in the opposite direction of SPY (which we have taken to represent the market).
+
+###Equal Weight Portfolio
+
+Set the seed to ensure reproducibility.
+```{r}
+set.seed(1234)
+```
+
+Run a simulation of 5000 trading months.
+```{r}
+
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	totalwealth = 100000 #Total wealth is $100,000
+	weights = c(0.2, 0.2, 0.2, 0.2, 0.2) #Weight each asset equally.
+	holdings = weights * totalwealth #Create a vector that tracks wealth in each asset. Reset for each 'month'
+	wealthtracker = rep(0, 20) # Set up a placeholder to track total wealth for each day.
+	for(today in 1:20) {
+		return.today = resample(returns, 1, orig.ids=FALSE) #Choose a random day of returns for each asset
+		holdings = holdings + holdings*return.today #Calculate new holdings
+		totalwealth = sum(holdings) #Sum holdings
+		wealthtracker[today] = totalwealth #Add new holdings to monthly wealth tracker.
+		holdings = weights * totalwealth #Rebalance holdings each night to reflect weights.
+	}
+	wealthtracker #return wealthtracker to sim1
+}
+```
+
+Examine results. After 20 days, we average $100,776 total wealth, with a minimum of $89,222 and a maximum of $110,483. Similarly, our profits range from -$10,778 to $10,482, averaging $775. We lose no more than $4689 95% of the time (the 5% value at risk). On the other hand, we will make more than $5496 5% of the time.
+
+```{r}
+summary(sim1)
+hist(sim1[,20], 25, main="Equal Weight Portfolio", xlab="Wealth After 20 days")
+
+# Profit/loss
+summary(sim1-100000)
+hist(sim1[,20]- 100000, main="Equal Weight Portfolio", xlab="Profits After 20 days")
+
+# Calculate 5% value at risk
+quantile(sim1[,20], 0.05) - 100000
+quantile(sim1[,20], 0.95) - 100000
+
+```
+
+###Safe Portfolio 
+
+Portfolio beta is a weighted average of the component asset betas. Thus, to create a safe portfolio, we will choose low-risk assets (assets with low betas and low standard deviations) and use higher weights on the safer assets.
+
+We choose 85% of LQD, the asset with the lowest beta and the lowest standard deviation (both almost zero). The returns of this asset do not vary much at all, and they vary with little with the market. This is a very safe asset.
+
+For the remaining 15%, we choose 10% TLT and 5% SPY. These two assets have similar standard deviations, meaning their returns vary about the same amount. However, TLT has a negative beta of about half the magnitude of SPY's positive beta. Thus, having twice as much TLT as SPY should create an effective hedge.
+
+We first create a second dataset with just the returns from the three assets we will use for this portfolio. We also set the seed to ensure reproducibility.
+```{r}
+safe<-returns[,c(1:3)]
+set.seed(1234)
+```
+
+As we did for the equal weights portflio, run a 5000 month bootstrap using this risky portfolio.
+```{r}
+sim2 = foreach(i=1:5000, .combine='rbind') %do% {
+	totalwealth = 100000
+	weights = c(.05, .10, .85)
+	holdings = weights * totalwealth
+	wealthtracker = rep(0, 20) 
+	for(today in 1:20) {
+		return.today = resample(safe, 1, orig.ids=FALSE)
+		holdings = holdings + holdings*return.today
+		totalwealth = sum(holdings)
+		wealthtracker[today] = totalwealth
+		holdings = weights * totalwealth #rebalance
+	}
+	wealthtracker
+}
+```
+
+For this safe portfolio, our total wealth ranges from $93,929 to $106,560, averaging $100,522. Our profits similarly range from -$6,071 to $6,560 averaging $522. 95% of the time, we will lose no more than $2,226 (5% value at risk), and 5% of the time, we gain at least $3,194. The likely range of values of this portfolio is much smaller than our equally weighted portfolio: Our risk is lower, but so are our potential returns.
+```{r}
+summary(sim2)
+hist(sim2[,20], 25, main="Safe Portfolio", xlab="Total Wealth After 20 Days")
+
+# Profit/loss
+summary(sim2-100000)
+hist(sim2[,20]- 100000, main="Safe Portfolio", xlab="Profit After 20 Days")
+
+# Calculate 5% value at risk
+quantile(sim2[,20], 0.05) - 100000
+
+#Calculate 5% upside
+quantile(sim2[,20],0.95) - 100000
+```
+
+###Risky portfolio
+Because portfolio beta is a weighted average, we will use high beta/high standard deviation assets (risky assets) to create a risky portfolio.
+
+We weight EEM (emerging markets) by 85% as it is by far the riskiest asset. The remainder of our portfolio will be in SPY (US equities) to ensure some diversification in our portfolio.
+```{r}
+risky<-returns[,c(1,4)]
+
+set.seed(1234)
+
+sim3 = foreach(i=1:5000, .combine='rbind') %do% {
+	totalwealth = 100000
+	weights = c(.15,.85)
+	holdings = weights * totalwealth
+	wealthtracker = rep(0, 20) # Set up a placeholder to track total wealth
+	for(today in 1:20) {
+		return.today = resample(risky, 1, orig.ids=FALSE)
+		holdings = holdings + holdings*return.today
+		totalwealth = sum(holdings)
+		wealthtracker[today] = totalwealth
+		holdings = weights * totalwealth #rebalance
+	}
+	wealthtracker
+}
+```
+
+For this riskier portfolio, our total wealth ranges from $79,158 to $125,348 with a mean of $100,270. Our profits range from -$20,842 to $25,348 with a mean of $269.64.  5% of the time, we lose at least $9280 (5% value at risk), and 5% of the time we gain at least $10,401. Thus this portfolio has a possibility of higher returns, but it is also far riskier than our safe or equal weights portfolios.
+```{r}
+summary(sim3)
+hist(sim3[,20], 25, main="Risky Portfolio",xlab="Total Wealth")
+
+
+# Profit/loss
+summary(sim3-100000)
+hist(sim3[,20]- 100000, main="Risky Portfolio", xlab="Profit")
+
+# Calculate 5% value at risk and 95% upside.
+quantile(sim3[,20], 0.05) - 100000
+quantile(sim3[,20],0.95) - 100000
+
+```
+
+###Summary: 
+
+Although all of these methods have similar averages, the potential risk and return differ greatly. The safe portfolio has by far the least potential risk and return, the risky by far the greatest. Equal weighted sits in the middle.
+
+#Question 3: Wine
+
+Load libraries
+```{r}
+library(ggplot2)
+library(cowplot)
+```
+
+
+Read in data. Create a separate data frame containing only the chemical properties. Scale the dataset.
+```{r}
+wine<-read.csv('https://raw.githubusercontent.com/jgscott/STA380/master/data/wine.csv',row.names<-1)
+wine_adj<-wine[,c(1:11)]
+wine_adj_s<-scale(wine_adj,center=TRUE,scale=TRUE)
+```
+
+###Using PCA to determine color
+
+Run PCA and review the summary statistics. We see that it takes 7 principal components to explain 90% of the variance in the data.
+```{r}
+pca<-prcomp(wine_adj_s)
+summary(pca)
+```
+
+Plot PC1 and PC1 versus PC2. It appears that both the first principal component model and the first and second component models have similar errors distinguishing at the red/white boundary.
+
+```{r, dev='png', fig.width=15}
+scores = pca$x
+
+q1<-qplot(scores[,1], fill=wine$color, xlab='Component 1', ylab='Frequency', main="One Principal Component", binwidth=.1, alpha=.1) + scale_fill_discrete ("Actual Color")+ scale_alpha(guide=FALSE)
+
+q2<-qplot(scores[,1],scores[,2], color=wine$color, xlab='Component 1', ylab='Component 2', main="Two Principal Components", size=1, alpha=.001)+ scale_color_discrete ("Actual Color") + scale_size(guide=FALSE) + scale_alpha(guide=FALSE)
+
+plot_grid(q1,q2)
+
+```
+
+
+###Using clustering to find color
+
+Set seed.
+
+```{r}
+set.seed(78705)
+```
+
+Run k-means. Use two centers because we expect two clusters: a red cluster and a white cluster.
+```{r}
+wcl<- kmeans(wine_adj_s, centers=2, nstart=50)
+```
+
+Create a plot to examine the accuracy of the k-means model. We see that cluster 2 largely maps to red wines and that cluster 1 largely maps to white wines. K-means accuracy appears to be far better than PCA.
+
+```{r, fig.height=7}
+ggplot (aes(x=color, fill=factor(wcl$cluster)), data=wine)+geom_bar(position="stack") + theme_minimal() +ggtitle ('Wine Color Classification') + scale_fill_discrete ("Cluster")
+
+```
+
+Create a confusion matrix and a proportion table. This model accurately predicts color 98% of the time.
+```{r}
+t1 = xtabs(~wine$color + wcl$cluster)
+t1
+prop.table(t1,margin=1)
+```
+
+###Final Model Choice: 
+
+K-means clustering appears to be a far superior method for determining whether a wine is red or white from its chemical properties.
+
+###Clustering to find quality
+
+Set seed.
+```{r}
+set.seed(78705)
+```
+
+Run k-means.
+```{r, include=FALSE}
+wclq<- kmeans(wine_adj_s, centers=10, nstart=1000)
+```
+
+Create a plot to examine the accuracy of the k-means model. We see that k-means is not capable of accurately predicting quality: It predicts a variety of qualities for each actual quality.
+```{r, message=FALSE}
+ggplot (aes(x=quality, fill=factor(wclq$cluster)), data=wine)+geom_bar(position="stack", binwidth=1) + theme_minimal() +ggtitle ('Wine Quality Classification') + scale_fill_discrete ("Actual Cluster")
+```
+
+###PCA to find quality
+
+We ran PCA earlier. We will now examine how well it predicts quality.. We see that it has similar problems to k-means: Every predicted quality level contains a wide range of actual quality levels.
+```{r}
+q1<-qplot(scores[,1], fill=factor(wine$quality), xlab='Component 1', ylab='Frequency', main="One Principal Component", binwidth=.1) + scale_fill_discrete ("Actual Quality")
+
+q2<-qplot(scores[,1], scores[,2], color=factor(wine$quality), xlab='Component 1', ylab='Component 2', main="Two Principal Components", size=1) + scale_color_discrete ("Actual Quality") + scale_size_identity()
+
+plot_grid (q1,q2)
+```
+
+###Summary
+
+K-means determined color far better than Principal Component Analysis. However, it failed to accurately determine quality. PCA was also unable to accurately determine quality using just the first two principal components.
+
+#Question 4: 
+
+Read in data with`header=TRUE` to preserve column names. Drop the unique id as it contains no meaningful information. Scale the data and extract the centering and scaling factors (`mu` and `sigma`).
+```{r}
+tweets=read.csv("https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv",header=TRUE)
+
+tweets_s<-tweets[,-1]
+
+tweets_s<-scale(tweets_s)
+
+mu=attr(tweets_s,"scaled:center")
+
+sigma=attr(tweets_s,"scaled:scale")
+
+```
+
+Set the seed to maintain reproducibility.
+```{r}
+set.seed(1234)
+```
+
+Run k-means with 10 centers and 50 nstarts. Although this k and n may not be the optimal in terms of accuracy, they ensure that our code runs in a timely fashion and that our results remain interpretable.
+```{r}
+tweets_clusters<-kmeans(tweets_s, centers=10, nstart=50)
+
+```
+
+###Examine clusters
+We will consider how far away each cluster center is from the entire data's means: More standard deviations indicate how much more a particular clusters' members tweet about a particular topic compared to the entire dataset. Standard deviations above one are particularly interesting because they suggest that the members of a particular cluster tweet far more about a particular topic than the other groups. 
+
+We then consider the unscaled data, which will tell us how meaningful the standard deviation is. Segments who creates many tweets about a particular topic are likely to be interested in that topic and more likely to respond to targeted social media. We also examine total tweets per week to determine how much a particular segment engages with twitter. 
+
+This three-step method minimizes noise from category size and hones in on Twitter engagement. The below function calculates the scaled and unscaled centers as well as the average total tweets per cluster to facilitate our analysis.
+```{r}
+scaled.unscaled<-function (x) {
+rows<-rows<-rbind(tweets_clusters$center[x,],(tweets_clusters$center[x,]*sigma + mu))
+rownames(rows)<-c("Scaled", "Unscaled")
+s<-sum(tweets_clusters$center[x,]*sigma + mu)
+list("Comparison"=rows,"Total Tweets"=s)
+}
+```
+  
+####Cluster 1
+
+This cluster appears to be composed of parents. These tweeters write far more than average about `sports_fandom` and `parenting`. They also tweet more often about `school` than other clusters. Of the 58 tweets they average a week, 14 are about these three topics
+```{r}
+scaled.unscaled(1)
+```
+  
+####Cluster 3: 
+
+This cluster appears to be the active cluster. These tweeters discuss `outdoors`, `personal fitness`, and `health_nutrition` far more than the average tweeter. About 20 of their 57 weekly tweets are about these three topics.
+```{r}
+scaled.unscaled(3)
+```
+  
+####Cluster 4: 
+
+This cluster appears to be the politically-engaged cluster. They discuss `news`, `travel`,  `current events`, `computers`, and `politics` far more than average tweeter. These topics compromise about 30 of their 61 weekly tweets.
+```{r}
+scaled.unscaled(4)
+```
+  
+####Cluster 5: 
+
+This cluster appears to be the young male cluster. They discuss `automotive`, `politics`, and `news` more than other tweeters. 17 of their 50 weekly tweets cover these topics.
+```{r}
+scaled.unscaled(5)
+```
+  
+####Cluster 6: 
+
+This appears to be the college student cluster. They discuss `online_gaming`, `college_uni`, and `sports_playing` more often than other tweeters. 25 of their weekly 58 tweets compromise of these topics.
+```{r}
+scaled.unscaled(6)
+```
+  
+####Cluster 8: 
+
+This appears to be the young female cluster. They discuss `photo sharing`, `beauty`, `cooking`, and `fashion` more often than other tweeters. 27 of their 62 weekly tweets are about these topics.
+```{r}
+scaled.unscaled(8)
+```
+  
+####Cluster 10: 
+
+This is the artsy cluster. They discuss `tv_film` and `art` more often than other tweeters. 11 of their 51 weekly tweets are about these topics.
+```{r}
+scaled.unscaled(10)
+```
+
+
+###Conclusion: 
+
+For many of the tweet categories above, people who use any particular one are more likely to use a particular subset of the other ones. These association patterns suggest that we have identified distinct segments with particular overlapping interests. In other words, certain interests appear to be correlated with other particular interests.
