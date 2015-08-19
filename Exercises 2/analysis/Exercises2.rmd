@@ -13,7 +13,7 @@ output:
 __For this exercise, we will define the worst airport as the airport with the longest delays.__
 
 Load libraries.
-```{r,include=FALSE}
+```{r,results='hide'}
 library(RSocrata)
 library(plyr)
 library(ggplot2)
@@ -57,7 +57,7 @@ We see arrivals have a much wider spread, both for flights departing from and ar
 
 Both the arrival delays and the departure delays have similar enough distributions for flights into Austin and out of Austin that we can safely consider them together rather than separately.
 
-```{r,dev="svg",fig.height=8,fig.width=15}
+```{r,dev="png",fig.height=8,fig.width=15}
 ggarrivalin<-ggplot(data=subset(airport,departing=="Arriving into Austin"))+geom_histogram(aes(x=ArrDelay), binwidth=10)+ coord_cartesian(xlim = c(-50,100),ylim=c(0,30000)) + labs(title="Arrival Delays for Flights\nArriving into Austin", x="Arrival Delay in Minutes", y="Number of Flights")
 
 ggarrivalout<-ggplot(data=subset(airport,departing=="Departing from Austin"))+geom_histogram(aes(x=ArrDelay), binwidth=10)+ coord_cartesian(xlim = c(-50,100),ylim=c(0,30000)) + labs(title="Arrival Delays for Flights\nDeparting from Austin", x="Departure Delay in Minutes", y="Number of Flights")
@@ -81,7 +81,7 @@ airportagg<-merge(airportagg, ll, by.x="Origin", by.y="locationID")
 
 Create graphs. The worst departure delays overall (both for flights arriving at Austin and departing from Austin) are in the mid-Atlantic region, with TYS (in Knoxville) being a clear outlier. We see similar patterns for arrival delays. TYS is still by far the worst, and the mid-Atlantic region still tends higher than everywhere else.
 
-```{r,dev="svg",fig.height=8,fig.width=24}
+```{r,dev="png",fig.height=8,fig.width=24}
 airportagg$Longitude=-(airportagg$Longitude) #uniformizing longitude between dataset and map
 
 ggdep<-ggplot(airportagg) + geom_map(data=usamap, map = usamap, aes(map_id=region,x=long,y=lat), fill="white", color="black") + geom_point(aes(x=Longitude,y=Latitude,size=AvgDepDelay),alpha=.5,color="blue")+ggtitle(paste0(airportagg$Origin[which.max(airportagg$AvgDepDelay)], " has the worst departure delays: ", round(airportagg$AvgDepDelay[which.max(airportagg$AvgDepDelay)],0), " minutes on average")) + scale_size_continuous("Minutes",breaks=c(-25,0,20,40,60), labels=c(-25,0,20,40,60), limits=c(-25,100), range=c(1,10))+theme(axis.line=element_blank(), axis.text=element_blank(),axis.ticks=element_blank(), axis.title=element_blank())
@@ -96,7 +96,7 @@ ggdraw(add_sub(q,label="Avoid TYS if possible",x=.5,y=.5,vpadding=grid::unit(1,"
 
 While we have seen the results aggregated over all flights, we may also want to consider only what happends when a flight is in fact delayed. In other words, which airport most quickly resolves delays? We filter by only departure delays so we retain all the flights that made up for the delay. TYS is still the worst, but many other big airports on the East Coast (as well as OKC) take about an hour to resolve departure delays. Southwestern airports only take about 20 minutes to resolve delays.
 
-```{r,dev="svg",fig.height=8,fig.width=24}
+```{r,dev="png",fig.height=8,fig.width=24}
 airport_delays<-subset(airport,DepDelay>0)
 
 airportagg<-ddply(airport_delays,.(Origin), summarize, AvgArrDelay=mean(ArrDelay), AvgDepDelay=mean(DepDelay))
@@ -122,7 +122,7 @@ The worst airport with regards to delays is TYS (Knoxville). However, the East C
 ###Creating a Dense Document Term Matrix
 
 Import necessary libraries and source necessary functions. 
-```{r, include=FALSE}
+```{r, results='hide'}
 library(tm)
 library(SnowballC)
 library(plyr)
@@ -239,7 +239,7 @@ X_test_mod<-X_test_mod[,order(colnames(X_test_mod))]
 
 ###Model 1: Naive Bayes
 
-_This model assumes words are independently distributed._
+__This model assumes words are independently distributed.__
 
 Calculate logged multinomial probability vectors for each author.
 ```{r}
@@ -366,18 +366,19 @@ xtab[xtab$authors_test %in% poor.prediction$authors_test & xtab$number>10 & xtab
 
 #Problem 3
 
-```{r, include=FALSE}
+Load libraries.
+```{r, results='hide'}
 library(arules)  
 ```
 
 Read data files and create transactions object.
 
-```{r, include=FALSE}
+```{r, results='hide'}
 groceries<-read.transactions("https://raw.githubusercontent.com/jgscott/STA380/master/data/groceries.txt",format="basket",sep=',')
 ```
 
 Run apriori algorithm with low support and low confidence: These levels let us inspect different subsets without rerunning the apriori algorithm. 
-```{r, include=FALSE}
+```{r, results='hide'}
 groceriesrules <- apriori(groceries,parameter=list(support=.001, confidence=.1, maxlen=10))
 ```
 
